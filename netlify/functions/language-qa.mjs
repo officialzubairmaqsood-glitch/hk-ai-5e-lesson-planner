@@ -28,7 +28,7 @@ export function checkTeachingPackage(plan,language='Kyrgyz',duration){const code
   if(code==='ky')for(const t of KY_TERMINOLOGY)if(value.toLowerCase().includes(t.incorrect.toLowerCase()))add('error','KY_TERMINOLOGY',path,t.reason,t.preferred);
   if(code==='ky'){
    for(const rule of KY_ERROR_RULES)if(value.toLocaleLowerCase('ky').includes(rule.pattern.toLocaleLowerCase('ky')))add('error','KY_CORPUS_ERROR',path,`Known ${rule.kind} issue: ${rule.pattern}`,rule.suggestion);
-   for(const heading of KY_FORBIDDEN_HEADINGS)if(value.toLowerCase().includes(heading.toLowerCase()))add('error','KY_ENGLISH_HEADING',path,`Untranslated heading: ${heading}`);
+   for(const heading of KY_FORBIDDEN_HEADINGS)if(value.trim().toLowerCase()===heading.toLowerCase())add('error','KY_ENGLISH_HEADING',path,`Untranslated heading: ${heading}`);
   }
   if(code!=='en'&&/\b(Class Activity Sheet|Homework Sheet|Learning objectives|Lesson Evaluation|What are your students doing\?|Learning materials and resources)\b/i.test(value))add('warning','ENGLISH_TEMPLATE_TEXT',path,'English heading found in localized content');
   if(/(?:^|\s)\.\.\.(?:\s|$)|[—-]\s*\.\.\./.test(value)&&/question|classActivity|homework|support|core|advanced/.test(path))add('warning','INCOMPLETE_QUESTION',path,'Question may be incomplete');

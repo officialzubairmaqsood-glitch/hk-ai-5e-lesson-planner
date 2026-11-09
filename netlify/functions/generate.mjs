@@ -55,7 +55,7 @@ export default async req=>{
     reviewed=candidate;
   }catch(e){return json({error:'Independent language proofreading failed. Please regenerate; unreviewed teaching materials will not be published.'},503);}
   const report=checkTeachingPackage(reviewed,language,duration);
-  if(report.status!=='automated_checks_passed')return json({error:'Language or teaching-material quality review flagged issues. Please regenerate or request teacher review.',issues:report.issues},422);
+  if(report.status==='blocked')return json({error:'The lesson contains specific quality errors that must be corrected before export.',issues:report.issues.slice(0,15)},422);
   reviewed.qualityReport={...report,reviewNote,initialIssueCount:before.issues.length,teacherApprovalRequired:true};
   return json(reviewed);
  }catch{return json({error:'Could not generate the lesson; please retry'},502)}

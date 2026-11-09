@@ -11,6 +11,6 @@ assert.equal(plan.stages.reduce((a,b)=>a+b.minutes,0),40);
 let result=checkTeachingPackage(plan,'Kyrgyz',40);assert.equal(result.status,'automated_checks_passed',JSON.stringify(result.issues));
 for(const phrase of ['өз алдынча иштөө аткарат','Кемсүү','күнүмдүк дневникке','Type() функциясы','Learning objectives']){let altered=structuredClone(plan);altered.aims=phrase;let check=checkTeachingPackage(altered,'Kyrgyz',40);assert.equal(check.status,'blocked',phrase)}
 const b={languages:['Kyrgyz'],materials:['Class Activity Sheet','Homework Sheet (2 A4 pages)','SUPPORT WORKSHEET','CORE WORKSHEET','ADVANCED WORKSHEET']};const selected=sheets(plan,b);assert.equal(selected.length,5);assert(selected.every(x=>!/(worksheet|sheet|homework)/i.test(x.title)));assert.equal(selected[0].questions.length,15);
-const gen=readFileSync(new URL('./netlify/functions/generate.mjs',import.meta.url),'utf8');assert(gen.includes('Independent language proofreading failed'));assert(gen.includes('quality review flagged issues'));
+const gen=readFileSync(new URL('./netlify/functions/generate.mjs',import.meta.url),'utf8');assert(gen.includes('Independent language proofreading failed'));assert(gen.includes('quality errors that must be corrected'));
 console.log('PASS: 4 locales, 15-item fixture, 5 localized worksheet titles, 5 Kyrgyz known-error rejection cases, generation blocking');
 console.log('UNTESTED: actual Gemini requests, PDF/DOCX/PPTX rendering, native-speaker correctness');
