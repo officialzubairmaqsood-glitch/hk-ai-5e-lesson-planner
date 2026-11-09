@@ -1,1 +1,11 @@
-{"name":"hk-ai-5e-lesson-planner","private":true,"version":"1.0.0","type":"module","dependencies":{"docx":"^9.5.1"}}
+{
+  "name": "hk-ai-5e-lesson-planner",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "docx": "^9.5.1",
+    "pptxgenjs": "^3.12.0",
+    "pdf-lib": "^1.17.1"
+  }
+}

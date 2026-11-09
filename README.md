@@ -32,3 +32,13 @@
 - **3,000 packages/month is a planning target, not an enforced quota or guaranteed free capacity.**
 - This version does NOT yet implement persistent shared quotas, IP-based abuse protection, lesson caching, or automatic multi-language output. Do not launch publicly at scale until these are added.
 - For a manual drag-and-drop deployment, make sure Netlify builds and deploys the functions and installs npm dependencies; a static-only upload will not run generation or DOCX export. Prefer Git-connected deployment.
+
+## November 2026 upgrade
+- Added selectable **PowerPoint Presentation (PPTX)** with 15/18 slides, two themes, answer slides and speaker notes. Download from `/.netlify/functions/pptx`.
+- Added landscape two-page lesson plan PDF generator at `/.netlify/functions/lesson-pdf`. It recreates the **structure** of the supplied template; review print output before use. It does not modify the original reference PDF.
+- Lesson plan preview and DOCX now use the source template's heading and four-column table structure.
+- Added optional textbook/unit reference and location fields.
+- Gemini API key must remain in Netlify environment variables, never GitHub.
+- Netlify must install the new `pptxgenjs` and `pdf-lib` dependencies from package.json. Connect this repo to Netlify and deploy from Git, not a static drop.
+- Current PDF export uses PDF standard Helvetica; for Kyrgyz/Russian/Turkish text containing non-Latin glyphs, use DOCX export and print to PDF until embedded Unicode fonts are implemented.
+- Slides are generated as editable text and shapes. The slide text is based on the generated lesson package; verify all generated examples and answers before class.
