@@ -42,3 +42,15 @@
 - Netlify must install the new `pptxgenjs` and `pdf-lib` dependencies from package.json. Connect this repo to Netlify and deploy from Git, not a static drop.
 - Current PDF export uses PDF standard Helvetica; for Kyrgyz/Russian/Turkish text containing non-Latin glyphs, use DOCX export and print to PDF until embedded Unicode fonts are implemented.
 - Slides are generated as editable text and shapes. The slide text is based on the generated lesson package; verify all generated examples and answers before class.
+
+## Smart Worksheet Designer — preview upgrade
+- New A4 portrait worksheet PDF download, with narrow margins, headings containing teacher/topic/grade/student/date and no duration.
+- Class activity and homework: two A4 portrait pages each; differentiated worksheets: portrait.
+- DOCX exporter uses a landscape section for the two-page lesson plan and portrait sections for worksheets and teacher answer key.
+- Gemini is prompted to return structured question types, including MCQs, matching, short answers, practical tasks and diagram instructions.
+- The PDF renderer draws basic flowchart and network shape placeholders for relevant diagram questions. These are schematic, not detailed topic illustrations or generated photographs.
+- Existing two-page lesson PDF and PPTX function are retained unchanged.
+
+**Important QA:** This is a test release. Inspect output for overflow, exact page count, diagram correctness and answers before using with students. Word can reflow pages depending on fonts/Word version. Automatic image generation, question-by-question editing, and bilingual paired worksheets are not yet implemented. Existing preview/Print PDF still uses the browser print engine; use the dedicated Worksheets PDF button for portrait sheets.
+
+**Deployment:** Back up the current GitHub repository first. Upload the contents of this ZIP to the same `hk-ai-5e-lesson-planner` repository root (not a nested folder). Do not upload any API key. Netlify should rebuild automatically. Test on a preview branch first if possible.
