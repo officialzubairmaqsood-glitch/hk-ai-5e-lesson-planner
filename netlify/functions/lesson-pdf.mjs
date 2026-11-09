@@ -1,26 +1,37 @@
-import {PDFDocument,StandardFonts,rgb} from 'pdf-lib';
-const err=(message,status=400)=>new Response(JSON.stringify({error:message}),{status,headers:{'content-type':'application/json'}});
-const st=v=>String(v??'').replace(/[\u0000-\u001f]/g,' ').replace(/[^\x20-\x7E]/g,'?').slice(0,3500);
-export default async req=>{
- if(req.method!=='POST')return err('Method not allowed',405);let v;try{v=await req.json()}catch{return err('Invalid JSON')}
- const a=v.plan,b=v.payload;if(!a||!b||!Array.isArray(a.stages))return err('Missing lesson plan');
- const pdf=await PDFDocument.create();const font=await pdf.embedFont(StandardFonts.Helvetica);const bold=await pdf.embedFont(StandardFonts.HelveticaBold);const W=841.89,H=595.28,M=13;const line=rgb(.46,.48,.5),gray=rgb(.84,.84,.84),white=rgb(1,1,1),black=rgb(.12,.13,.15);
+import {PDFDocument,rgb} from 'pdf-lib';
+import {unicodeFonts} from './unicode-font.mjs';
+import {LABELS,LANGUAGES} from './language-qa.mjs';
+const reply=(message,status=400)=>new Response(JSON.stringify({error:message}),{status,headers:{'content-type':'application/json'}});
+const safe=x=>String(x??'').replace(/[\u0000-\u001f]/g,' ').slice(0,4500);
+export default async function(req){
+ if(req.method!=='POST')return reply('Method not allowed',405);
+ let body;try{body=await req.json()}catch{return reply('Invalid JSON')}
+ const {plan:a,payload:b}=body;if(!a||!b||!Array.isArray(a.stages))return reply('Missing lesson data');
+ try{
+ const pdf=await PDFDocument.create();const {normal:font}=await unicodeFonts(pdf);
+ const lang=LANGUAGES[(b.languages||[])[0]]||'en',L=LABELS[lang];
+ const W=841.89,H=595.28,M=17,usable=W-2*M,ink=rgb(.11,.17,.25),line=rgb(.68,.72,.77),pale=rgb(.92,.95,.98);
  const pages=[pdf.addPage([W,H]),pdf.addPage([W,H])];
- function text(p,s,x,top,w,size=8,weight=false,maxLines=10){let f=weight?bold:font;let words=st(s).split(/\s+/);let lines=[],cur='';for(const word of words){let test=cur?cur+' '+word:word;if(f.widthOfTextAtSize(test,size)>w&&cur){lines.push(cur);cur=word}else cur=test}if(cur)lines.push(cur);lines.slice(0,maxLines).forEach((t,i)=>p.drawText(t,{x,y:H-top-size-i*(size+2),font:f,size,color:black}));return Math.min(lines.length,maxLines)*(size+2)}
- function rect(p,x,t,w,h,fill){p.drawRectangle({x,y:H-t-h,width:w,height:h,borderColor:line,borderWidth:.65,...(fill?{color:fill}:{})})}
- function row(p,t,h,cols,vals,fillHeader=false,size=8){let x=M;cols.forEach((w,i)=>{rect(p,x,t,w,h,fillHeader?gray:undefined);text(p,vals[i]||'',x+5,t+5,w-10,size,fillHeader,Math.floor((h-8)/(size+2)));x+=w})}
- const cols=[62,253,253,247];let p=pages[0];
- row(p,12,27,[174,236,58,125,60,162],['Session title',st(b.topic),'Date','____________','Location',st(b.location||'ICT Lab')],false,8);
- row(p,39,27,[174,236,58,125,60,162],['Learner group',`${st(b.grade)} ${st(b.section)}`,'Duration',`${b.duration} minutes`,'Group size','__________'],false,8);
- const block=(top,height,label,help,body)=>{rect(p,M,top,174,height,gray);rect(p,M+174,top,641,height);text(p,label,M+6,top+6,163,10,true,2);text(p,help,M+6,top+26,160,7,false,4);text(p,body,M+180,top+7,627,8,false,Math.floor((height-10)/10))};
- block(72,58,'Learning aims','A statement of the overall intent of the lesson.',`Learning Aim (According to Bloom's Taxonomy): ${a.aims}  Teacher: ${b.teacher}. Reference: ${b.textbook||b.curriculum||'Teacher-prepared resources'}.`);
- block(136,83,'Learning objectives','What are learners expected to learn after completing the lesson?',`Student Learning Outcomes (SLOs) - According to Bloom's Taxonomy. By the end of the lesson, students will be able to: ${(a.slos||[]).map((x,i)=>`${i+1}. ${x}`).join('   ')}`);
- block(225,65,'Inclusion','How will you make your lesson inclusive?',`${a.differentiation||''}`);
- row(p,296,26,cols,['Time','What are you doing?','What are your students doing?','Learning materials and resources'],true,8);
- const stages=a.stages.slice(0,7);const h1=[48,55,65,85];let y=322;stages.slice(0,4).forEach((s,i)=>{row(p,y,h1[i],cols,[`${s.minutes} min`,`${s.name}: ${s.teacher}`,s.student,s.resources||a.resources],false,7.6);y+=h1[i]});
- text(p,`${b.grade} ${b.subject} | Week ____ | Lesson 1`,M,579,450,7);text(p,'Page 1 of 2',420,579,100,7);
- p=pages[1];row(p,13,27,cols,['Time','What are you doing?','What are your students doing?','Learning materials and resources'],true,8);const h2=[160,160,105];y=40;stages.slice(4,7).forEach((s,i)=>{row(p,y,h2[i],cols,[`${s.minutes} min`,`${s.name}: ${s.teacher}`,s.student,s.resources||a.resources],false,7.6);y+=h2[i]});
- rect(p,M,474,815,88);text(p,'Lesson Evaluation:',M+6,481,780,9,true);text(p,'What went well: ___________________________________   Evidence of SLO achievement: ___________________________________',M+6,504,780,8);text(p,'What I would improve next time: _________________________   Learners requiring follow-up support: _________________________',M+6,531,780,8);
- text(p,`${b.grade} ${b.subject} | Week ____ | Lesson 1`,M,579,450,7);text(p,'Page 2 of 2',420,579,100,7);
- try{let out=await pdf.save();return new Response(out,{headers:{'content-type':'application/pdf','content-disposition':'attachment; filename="5E_Lesson_Plan_Two_Page_Landscape.pdf"','cache-control':'no-store'}})}catch{return err('PDF export failed',500)}
-};
+ function wrap(s,width,size){const result=[];for(const raw of safe(s).split('\n')){let current='';for(const word of raw.split(/\s+/)){if(!word)continue;const test=current?current+' '+word:word;if(font.widthOfTextAtSize(test,size)>width&&current){result.push(current);current=word;}else current=test;}result.push(current);}return result;}
+ function text(pg,s,x,top,w,size=8,maxLines=12){const rows=wrap(s,w,size);const lineH=size+2.4;const cap=Math.min(maxLines,rows.length);for(let i=0;i<cap;i++)pg.drawText(rows[i],{x,y:H-top-size-i*lineH,size,font,color:ink});return {height:cap*lineH,overflow:rows.length>maxLines};}
+ function rect(pg,x,top,w,h,fill){pg.drawRectangle({x,y:H-top-h,width:w,height:h,borderColor:line,borderWidth:.6,...(fill?{color:fill}:{})});}
+ function row(pg,top,h,widths,vals,header=false,size=7.4){let x=M;let overflow=false;for(let i=0;i<widths.length;i++){rect(pg,x,top,widths[i],h,header?pale:null);const z=text(pg,vals[i]||'',x+5,top+4,widths[i]-10,size,Math.floor((h-8)/(size+2.4)));overflow ||=z.overflow;x+=widths[i];}return overflow;}
+ const meta=[112,232,64,102,64,233], cols=[63,250,250,usable-563];let pg=pages[0];let over=false;
+ const d={en:['Session title','Date','Location','Learner group','Duration','Group size','minutes','Time'],ky:['Сабактын темасы','Дата','Өтүүчү жай','Класс','Узактыгы','Окуучулардын саны','мүнөт','Убакыт'],ru:['Тема урока','Дата','Место','Класс','Продолжительность','Количество учащихся','минут','Время'],tr:['Ders konusu','Tarih','Yer','Sınıf','Süre','Öğrenci sayısı','dakika','Süre']}[lang];
+ over ||=row(pg,12,27,meta,[d[0],b.topic,d[1],'____________',d[2],b.location||'ICT Lab']);
+ over ||=row(pg,39,27,meta,[d[3],`${b.grade} ${b.section}`,d[4],`${b.duration} ${d[6]}`,d[5],'____________']);
+ function block(top,h,label,content){rect(pg,M,top,167,h,pale);rect(pg,M+167,top,usable-167,h);over ||=text(pg,label,M+6,top+7,154,9,3).overflow;over ||=text(pg,content,M+173,top+7,usable-185,8,Math.floor((h-10)/10.4)).overflow;}
+ block(72,59,L.aims,`${a.aims}   ${b.teacher||''}  ${b.textbook||b.curriculum||''}`);
+ block(137,81,L.objectives,(a.slos||[]).map((s,i)=>`${i+1}. ${s}`).join('\n'));
+ block(224,64,L.inclusion,a.differentiation||'');
+ over ||=row(pg,295,26,cols,[d[7],L.teacher,L.student,L.resources],true);
+ let y=321;for(const [i,h] of [48,55,65,85].entries()){const s=a.stages[i]||{};over ||=row(pg,y,h,cols,[`${s.minutes||0} ${d[6]}`,`${L.stages[i]}: ${s.teacher||''}`,s.student||'',s.resources||a.resources||''],false,7.3);y+=h;}
+ text(pg,'1 / 2',W-M-55,579,45,8);
+ pg=pages[1];over ||=row(pg,12,26,cols,[d[7],L.teacher,L.student,L.resources],true);y=38;
+ for(const [i,h] of [143,143,128].entries()){const s=a.stages[i+4]||{};over ||=row(pg,y,h,cols,[`${s.minutes||0} ${d[6]}`,`${L.stages[i+4]}: ${s.teacher||''}`,s.student||'',s.resources||a.resources||''],false,7.3);y+=h;}
+ rect(pg,M,460,usable,101);text(pg,L.evaluation,M+7,468,usable-15,10);const blanks={en:['What went well','Evidence of learning','What to improve','Learners requiring support'],ky:['Ийгиликтүү болгон жактары','Окуу натыйжаларынын далилдери','Жакшыртуу жолдору','Кошумча колдоого муктаж окуучулар'],ru:['Что удалось','Подтверждение результатов','Что улучшить','Учащиеся, которым нужна поддержка'],tr:['İyi giden yönler','Öğrenme kanıtları','Geliştirilecek yönler','Ek desteğe ihtiyaç duyan öğrenciler']}[lang];
+ blanks.forEach((s,i)=>text(pg,s+': __________________________',M+8+(i%2)*400,487+Math.floor(i/2)*28,385,8));text(pg,'2 / 2',W-M-55,579,45,8);
+ if(over)return reply('Lesson content does not fit the approved two-page layout. Shorten text or revise content before exporting.',422);
+ return new Response(await pdf.save(),{headers:{'content-type':'application/pdf','content-disposition':'attachment; filename="AI_Ustad_G_Lesson.pdf"'}});
+ }catch(e){return reply('Multilingual PDF export failed: '+e.message,503)}
+}

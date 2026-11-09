@@ -1,0 +1,1 @@
+V4.1 UI patch: reapply selected locale when entering the form, extend Kyrgyz/Russian/Turkish labels and translate grade/curriculum option display text without changing their underlying values. This package has NOT been deployed or live-tested. It does not certify all interface strings. Keep live site unchanged until full QA.
