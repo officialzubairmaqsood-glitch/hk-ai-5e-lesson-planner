@@ -1,7 +1,7 @@
 {
   "name": "hk-ai-5e-lesson-planner",
   "private": true,
-  "version": "4.6.1",
+  "version": "4.6.2",
   "type": "module",
   "dependencies": {
     "docx": "^9.5.1",
@@ -12,6 +12,6 @@
   },
   "scripts": {
     "build": "node download-font.mjs",
-    "check": "node --check netlify/functions/generate.mjs && node --check netlify/functions/export.mjs"
+    "check": "node --check netlify/functions/generate.mjs && node --check netlify/functions/pptx.mjs && node --check netlify/functions/export.mjs"
   }
 }

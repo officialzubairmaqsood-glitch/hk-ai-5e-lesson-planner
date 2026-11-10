@@ -40,18 +40,49 @@ export default async req=>{
  s=slide(tr('Evaluate'),tr('Answers and feedback'));content(s,safeItems(a.ppt?.checkAnswers).length?a.ppt.checkAnswers:[str(a.assessment),str(a.answerKey).slice(0,220)],{size:18});
  s=slide(tr('Closure'),tr('Summary and exit ticket'));content(s,safeItems(a.ppt?.summary).length?a.ppt.summary:[str(a.aims),str(stage('Closure').student||tr('Share one thing you learned today.')),`${tr('Exit ticket: Explain one key idea from')} ${topic}.`],{size:18});
  s=slide(tr('Homework'),tr('Keep practising'));content(s,safeItems(a.homework).slice(0,4),{size:18});
+
+ // V4.6.2 mandatory visuals: embedded topic-aware SVG illustration + editable concept graphic,
+ // editable process diagram and a native PowerPoint comparison table. No external image quota.
+ const escSvg=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\"':'&quot;'}[c]));
+ const category=(()=>{const t=(topic+' '+subject).toLowerCase();if(/flowchart|algorithm|program|coding|python|computer|network|ict|robot|data|hardware|software/.test(t))return 'computing';if(/heart|human|body|plant|cell|biology|animal|science/.test(t))return 'science';if(/fraction|number|math|geometry|algebra|calculate/.test(t))return 'math';if(/water|weather|earth|geograph|climate|environment/.test(t))return 'earth';return 'learning'})();
+ const illustration={
+ computing:`<rect x="155" y="110" width="490" height="295" rx="26" fill="#DCEEFF" stroke="#1678D3" stroke-width="15"/><rect x="185" y="142" width="430" height="224" rx="8" fill="#143A67"/><path d="M225 215l60 40-60 40 M340 295h100" stroke="#81E5F5" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M300 410v44 M215 454h370" stroke="#1678D3" stroke-width="19" stroke-linecap="round"/><circle cx="540" cy="210" r="28" fill="#F7BC43"/>`,
+ science:`<path d="M400 440C110 260 220 100 345 165Q400 210 400 230Q400 210 455 165C580 100 690 260 400 440Z" fill="#EF5C77" stroke="#B83150" stroke-width="13"/><path d="M400 235v160 M340 285h120" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round"/><circle cx="205" cy="190" r="45" fill="#C7F0D5"/><circle cx="585" cy="360" r="45" fill="#C7F0D5"/>`,
+ math:`<circle cx="380" cy="265" r="170" fill="#E7F3FF" stroke="#1678D3" stroke-width="14"/><path d="M380 265V95 A170 170 0 0 1 550 265Z" fill="#F7BC43"/><path d="M380 265H550" stroke="#1678D3" stroke-width="11"/><text x="380" y="290" text-anchor="middle" font-size="72" font-family="Arial" fill="#143A67">½</text>`,
+ earth:`<circle cx="400" cy="260" r="170" fill="#91D7F5" stroke="#1678D3" stroke-width="13"/><path d="M280 155l100-50 65 65-15 75-85 10-50 85-70-65Z M460 275l85-35 18 100-80 55-60-70Z" fill="#64BA88"/><path d="M170 130l-45 45 45 45 M630 360l45-45-45-45" stroke="#F7BC43" stroke-width="15" stroke-linecap="round" fill="none"/>`,
+ learning:`<path d="M155 165Q280 95 400 165Q520 95 645 165V420Q520 350 400 420Q280 350 155 420Z" fill="#E4F2FF" stroke="#1678D3" stroke-width="14"/><path d="M400 165v255" stroke="#1678D3" stroke-width="12"/><path d="M200 220q90-35 165 0 M200 270q90-35 165 0 M435 220q90-35 165 0 M435 270q90-35 165 0" fill="none" stroke="#76A9D9" stroke-width="12" stroke-linecap="round"/>`
+ }[category];
+ const topicSvg=`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520"><rect width="800" height="520" rx="38" fill="#F3F8FF"/>${illustration}<rect x="28" y="26" width="744" height="468" rx="28" fill="none" stroke="#D4E5F6" stroke-width="4"/></svg>`;
+ const svgData='data:image/svg+xml;base64,'+Buffer.from(topicSvg).toString('base64');
+ const addIllustration=(sl,x,y,w,h)=>{sl.addImage({data:svgData,x,y,w,h,altText:`Educational illustration for ${topic}`});visualAudit.images++};
+ const visualAudit={images:0,graphics:0,diagrams:0,tables:0};
+ // Use an embedded, topic-classified vector illustration rather than a remote, unlicensed image.
+ let imageSlide=slide(tr('Explain'),topic,({en:'Visual introduction to the lesson',ky:'Сабакка көргөзмөлүү киришүү',ru:'Наглядное введение в тему',tr:'Konuya görsel giriş'})[lang]);
+ addIllustration(imageSlide,3.25,2.05,6.8,4.35);
+ // Editable, topic-aligned concept map. Text comes from the actual learning outcomes.
+ let graphicSlide=slide(tr('Explain'),({en:'Visual concept map',ky:'Түшүнүктөр картасы',ru:'Карта понятий',tr:'Kavram haritası'})[lang]);
+ const central=topic.slice(0,85);
+ graphicSlide.addShape(pptx.ShapeType.ellipse,{x:4.55,y:2.45,w:4.25,h:1.05,line:{color:T.accent,width:2},fill:{color:T.soft}});
+ graphicSlide.addText(central,{x:4.8,y:2.73,w:3.75,h:.5,fontSize:19,bold:true,color:T.navy,align:'center',fit:'shrink',margin:0});
+ const goals=safeItems(a.slos).slice(0,3);
+ const coords=[[.6,4.35],[4.55,4.65],[8.5,4.35]];
+ coords.forEach(([x,y],i)=>{const cx=x+1.85;graphicSlide.addShape(pptx.ShapeType.line,{x:6.67,y:3.5,w:cx-6.67,h:y-3.5,line:{color:T.accent,width:2,beginArrowType:'none',endArrowType:'triangle'}});graphicSlide.addShape(pptx.ShapeType.roundRect,{x,y,w:3.7,h:1.12,rectRadius:.14,line:{color:T.accent,width:1.5},fill:{color:i%2?'FFFFFF':T.soft}});graphicSlide.addText(goals[i]||`${tr('Learning goals')} ${i+1}`,{x:x+.15,y:y+.15,w:3.4,h:.82,fontSize:14,color:T.navy,fit:'shrink',margin:0,align:'center'});});visualAudit.graphics++;
+
  // V4.6: editable, topic-aligned visual slides (native PPTX shapes and table).
  const visualTitle=({en:'Learning process diagram',ky:'Окуу процессинин диаграммасы',ru:'Схема учебного процесса',tr:'Öğrenme süreci diyagramı'})[lang];
  let vs=slide(tr('Explain'),visualTitle);
  const nodes=safeItems(a.stages).slice(1,6);
  const nodeW=2.22,space=.17;
  nodes.forEach((n,i)=>{const x=.68+i*(nodeW+space);vs.addShape(pptx.ShapeType.roundRect,{x,y:2.58,w:nodeW,h:1.45,rectRadius:.16,line:{color:T.accent,width:1.6},fill:{color:i%2?T.soft:'FFFFFF'}});vs.addText(String(i+1),{x:x+.08,y:2.75,w:.3,h:.32,fontSize:17,bold:true,color:T.accent});vs.addText(str(n.name||(['Engage','Explore','Explain','Elaborate','Evaluate'][i])),{x:x+.28,y:3.1,w:nodeW-.38,h:.55,fontSize:15,bold:true,color:T.navy,align:'center',fit:'shrink'});if(i<4)vs.addShape(pptx.ShapeType.chevron,{x:x+nodeW+.015,y:3.13,w:.14,h:.3,line:{color:T.accent},fill:{color:T.accent}})});
- vs.addText(str(a.aims),{x:.9,y:4.8,w:11.5,h:1.15,fontSize:18,color:T.navy,fit:'shrink'});
+ vs.addText(str(a.aims),{x:.9,y:4.8,w:11.5,h:1.15,fontSize:18,color:T.navy,fit:'shrink'});visualAudit.diagrams++;
  let ts=slide(tr('Explain'),({en:'Compare classroom approaches',ky:'Тапшырмаларды салыштыруу',ru:'Сравнение учебных заданий',tr:'Etkinlikleri karşılaştırma'})[lang]);
  const tableRows=[[{text:tr('Support'),options:{bold:true}},{text:tr('Core'),options:{bold:true}},{text:tr('Advanced'),options:{bold:true}}],...Array.from({length:3},(_,i)=>[str(a.support?.[i]||''),str(a.core?.[i]||''),str(a.advanced?.[i]||'')])];
  ts.addTable(tableRows,{x:.65,y:2.08,w:12.0,h:3.75,colW:[4,4,4],rowH:[.56,1.02,1.02,1.02],border:{type:'solid',pt:.7,color:'D0E1F2'},fill:'FFFFFF',color:T.navy,fontSize:13,margin:.12,autoFit:false});
+ visualAudit.tables++;
  if(b.pptAnswers===false){pptx._slides.splice(15,1);}
- if(b.pptSlides===15){while(pptx._slides.length>15){pptx._slides.splice(8,1)}}
+ // Preserve all mandatory visual slides even when a 15-slide preference is selected.
+ if(Number(b.pptSlides)===15){while(pptx._slides.length>15){const candidate=pptx._slides[8];if([imageSlide,graphicSlide,vs,ts].includes(candidate))break;pptx._slides.splice(8,1)}}
  if(b.pptNotes!==false){pptx._slides.forEach((sl,i)=>{try{sl.addNotes(`${tr('5E classroom presentation')}. ${tr('Topic')}: ${topic}. ${tr('Teacher')}: ${str(b.teacher)}. ${tr('Slide')} ${i+1}. ${tr('Review and adapt activities before class.')}`)}catch{}})}
+ if(Object.values(visualAudit).some(n=>n<1))return json({error:'Mandatory PPTX visuals missing; export refused',visualAudit},422);
  try{const buffer=await pptx.write({outputType:'nodebuffer'});return new Response(buffer,{headers:{'content-type':'application/vnd.openxmlformats-officedocument.presentationml.presentation','content-disposition':'attachment; filename="5E_Classroom_Presentation.pptx"','cache-control':'no-store'}})}catch(e){console.error('PPTX export:',e);return json({error:'PPTX creation failed'},500)}
 };
