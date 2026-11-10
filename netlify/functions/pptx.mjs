@@ -40,8 +40,18 @@ export default async req=>{
  s=slide(tr('Evaluate'),tr('Answers and feedback'));content(s,safeItems(a.ppt?.checkAnswers).length?a.ppt.checkAnswers:[str(a.assessment),str(a.answerKey).slice(0,220)],{size:18});
  s=slide(tr('Closure'),tr('Summary and exit ticket'));content(s,safeItems(a.ppt?.summary).length?a.ppt.summary:[str(a.aims),str(stage('Closure').student||tr('Share one thing you learned today.')),`${tr('Exit ticket: Explain one key idea from')} ${topic}.`],{size:18});
  s=slide(tr('Homework'),tr('Keep practising'));content(s,safeItems(a.homework).slice(0,4),{size:18});
+ // V4.6: editable, topic-aligned visual slides (native PPTX shapes and table).
+ const visualTitle=({en:'Learning process diagram',ky:'Окуу процессинин диаграммасы',ru:'Схема учебного процесса',tr:'Öğrenme süreci diyagramı'})[lang];
+ let vs=slide(tr('Explain'),visualTitle);
+ const nodes=safeItems(a.stages).slice(1,6);
+ const nodeW=2.22,space=.17;
+ nodes.forEach((n,i)=>{const x=.68+i*(nodeW+space);vs.addShape(pptx.ShapeType.roundRect,{x,y:2.58,w:nodeW,h:1.45,rectRadius:.16,line:{color:T.accent,width:1.6},fill:{color:i%2?T.soft:'FFFFFF'}});vs.addText(String(i+1),{x:x+.08,y:2.75,w:.3,h:.32,fontSize:17,bold:true,color:T.accent});vs.addText(str(n.name||(['Engage','Explore','Explain','Elaborate','Evaluate'][i])),{x:x+.28,y:3.1,w:nodeW-.38,h:.55,fontSize:15,bold:true,color:T.navy,align:'center',fit:'shrink'});if(i<4)vs.addShape(pptx.ShapeType.chevron,{x:x+nodeW+.015,y:3.13,w:.14,h:.3,line:{color:T.accent},fill:{color:T.accent}})});
+ vs.addText(str(a.aims),{x:.9,y:4.8,w:11.5,h:1.15,fontSize:18,color:T.navy,fit:'shrink'});
+ let ts=slide(tr('Explain'),({en:'Compare classroom approaches',ky:'Тапшырмаларды салыштыруу',ru:'Сравнение учебных заданий',tr:'Etkinlikleri karşılaştırma'})[lang]);
+ const tableRows=[[{text:tr('Support'),options:{bold:true}},{text:tr('Core'),options:{bold:true}},{text:tr('Advanced'),options:{bold:true}}],...Array.from({length:3},(_,i)=>[str(a.support?.[i]||''),str(a.core?.[i]||''),str(a.advanced?.[i]||'')])];
+ ts.addTable(tableRows,{x:.65,y:2.08,w:12.0,h:3.75,colW:[4,4,4],rowH:[.56,1.02,1.02,1.02],border:{type:'solid',pt:.7,color:'D0E1F2'},fill:'FFFFFF',color:T.navy,fontSize:13,margin:.12,autoFit:false});
  if(b.pptAnswers===false){pptx._slides.splice(15,1);}
- if(b.pptSlides===15){while(pptx._slides.length>15){pptx._slides.splice(pptx._slides.length>17?10:8,1)}}
+ if(b.pptSlides===15){while(pptx._slides.length>15){pptx._slides.splice(8,1)}}
  if(b.pptNotes!==false){pptx._slides.forEach((sl,i)=>{try{sl.addNotes(`${tr('5E classroom presentation')}. ${tr('Topic')}: ${topic}. ${tr('Teacher')}: ${str(b.teacher)}. ${tr('Slide')} ${i+1}. ${tr('Review and adapt activities before class.')}`)}catch{}})}
  try{const buffer=await pptx.write({outputType:'nodebuffer'});return new Response(buffer,{headers:{'content-type':'application/vnd.openxmlformats-officedocument.presentationml.presentation','content-disposition':'attachment; filename="5E_Classroom_Presentation.pptx"','cache-control':'no-store'}})}catch(e){console.error('PPTX export:',e);return json({error:'PPTX creation failed'},500)}
 };
