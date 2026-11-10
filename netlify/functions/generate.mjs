@@ -19,7 +19,7 @@ async function aiCall(provider,prompt,{maxTokens=12288,temperature=.25,timeout=2
    body={contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature,maxOutputTokens:maxTokens}};
   }
   const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:ctrl.signal});
-  if(!r.ok)throw Error(`${provider} HTTP ${r.status}`);
+  if(!r.ok){const err=new Error(`${provider} HTTP ${r.status}`);err.status=r.status;err.retryAfter=Number(r.headers.get('retry-after')||0);throw err;}
   const data=await r.json();
   const content=provider==='groq'?data.choices?.[0]?.message?.content:(data.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('');
   if(!content)throw Error(`${provider} returned empty content`);
@@ -29,8 +29,16 @@ async function aiCall(provider,prompt,{maxTokens=12288,temperature=.25,timeout=2
 }
 async function withFallback(primary,prompt,opts={}){
  const providers=[primary,primary==='gemini'?'groq':'gemini'];let last;
- for(const provider of providers){if(!process.env[provider==='gemini'?'GEMINI_API_KEY':'GROQ_API_KEY'])continue;
-  for(let n=0;n<1;n++){try{return {data:await aiCall(provider,prompt,opts),provider}}catch(e){last=e;console.warn('AI attempt',provider,n+1,e.message);if(n===0)await wait(250)}}
+ for(const provider of providers){
+  if(!process.env[provider==='gemini'?'GEMINI_API_KEY':'GROQ_API_KEY'])continue;
+  for(let n=0;n<2;n++){
+   try{return {data:await aiCall(provider,prompt,opts),provider}}
+   catch(e){last=e;console.warn(JSON.stringify({event:'provider_failure',provider,attempt:n+1,status:e.status||null,reason:e.name==='AbortError'?'timeout':e.message}));
+    if([400,401,403,404,413,422].includes(e.status))break;
+    if(e.status===429&&e.retryAfter>8)break;
+    if(n===0)await wait(Math.min(3500,Math.max(400,e.retryAfter*1000||800)));
+   }
+  }
  }
  throw last||Error('No AI provider configured');
 }
@@ -40,7 +48,7 @@ function questionCount(v,k){const structured=v?.worksheetItems?.[k];const plain=
 function normalizeWorksheets(v){if(!v.worksheetItems||typeof v.worksheetItems!=='object')v.worksheetItems={};for(const k of WORK_KEYS){if(!Array.isArray(v[k]))v[k]=[];if(!Array.isArray(v.worksheetItems[k]))v.worksheetItems[k]=[];if(v.worksheetItems[k].length>v[k].length)v[k]=v.worksheetItems[k].map(q=>String(q.question||'')).filter(Boolean);}}
 async function fillWorksheets(v,safe,language){normalizeWorksheets(v);const missing=WORK_KEYS.filter(k=>questionCount(v,k)<MIN_QUESTIONS);if(!missing.length)return {missing:[],provider:null};
  const prompt=`Create ONLY the missing classroom worksheets in ${language} for ${JSON.stringify({grade:safe.grade,subject:safe.subject,topic:safe.topic,curriculum:safe.curriculum,objectives:v.slos,existing: Object.fromEntries(missing.map(k=>[k,v.worksheetItems[k].length?v.worksheetItems[k]:v[k]]))})}. Return JSON object with keys ${JSON.stringify(missing)}, each an array of at least 5 UNIQUE age-appropriate assessable question objects. Each object has type, question, options (array), pairs (array), diagram (string), answer (string), marks (integer). Questions must align with learning objectives; no invented facts or curriculum pages. Include complete answers. For classActivity prefer 15 varied questions including 5 MCQs. Use the selected language for all prose.`;
- try{const {data,provider}=await withFallback('groq',prompt,{maxTokens:5500,timeout:18000});for(const k of missing){if(Array.isArray(data[k])&&data[k].length>=MIN_QUESTIONS){v.worksheetItems[k]=data[k];v[k]=data[k].map(q=>String(q.question||'')).filter(Boolean)}}return {missing:WORK_KEYS.filter(k=>questionCount(v,k)<MIN_QUESTIONS),provider};}catch(e){console.warn('Worksheet recovery:',e.message);return {missing:WORK_KEYS.filter(k=>questionCount(v,k)<MIN_QUESTIONS),provider:null}}
+ try{const {data,provider}=await withFallback('groq',prompt,{maxTokens:5500,timeout:30000});for(const k of missing){if(Array.isArray(data[k])&&data[k].length>=MIN_QUESTIONS){v.worksheetItems[k]=data[k];v[k]=data[k].map(q=>String(q.question||'')).filter(Boolean)}}return {missing:WORK_KEYS.filter(k=>questionCount(v,k)<MIN_QUESTIONS),provider};}catch(e){console.warn('Worksheet recovery:',e.message);return {missing:WORK_KEYS.filter(k=>questionCount(v,k)<MIN_QUESTIONS),provider:null}}
 }
 export default async req=>{
  if(req.method!=='POST')return json({error:'Method not allowed'},405);
@@ -58,7 +66,7 @@ export default async req=>{
  const prompt=`${system}\n\nJSON response keys and structure (all keys required): ${JSON.stringify(schema)}\n\nTeacher request: ${JSON.stringify(safe)}\n\nReturn one JSON object only.`;
  try{
   // Gemini creates the shared 5E plan; Groq automatically takes over if Gemini fails.
-  const generated=await withFallback('gemini',prompt,{maxTokens:12288,timeout:24000});
+  const generated=await withFallback('gemini',prompt,{maxTokens:12288,timeout:40000});
   let v=generated.data;
   const initialProvider=generated.provider;
   const expected={mcq:5,define:2,explain:2,matching:1,critical:2,think:1,diagram:1,practical:1};
@@ -82,7 +90,7 @@ export default async req=>{
     repairAttempted=true;
     try{
       const fixPrompt=`Repair ONLY the missing/incomplete sections in this ${language} teaching package. Preserve all correct material, topic, original answers, and keys. Output a full JSON object with the same schema. Duration ${duration}. Required issues: ${JSON.stringify(missing)}. Original JSON: ${JSON.stringify(v)}`;
-      const {data:fixed}=await withFallback(initialProvider,fixPrompt,{maxTokens:10000,timeout:18000});
+      const {data:fixed}=await withFallback(initialProvider,fixPrompt,{maxTokens:10000,timeout:30000});
       if(diagnose(fixed).length<missing.length){v=fixed;repairSucceeded=true;}
     }catch(e){console.warn('Optional structure repair failed:',e?.message||String(e));}
     missing=diagnose(v);
@@ -117,5 +125,5 @@ export default async req=>{
   if(report.status==='blocked')reviewNote+='; automated quality checks flagged errors — teacher review required';
   reviewed.qualityReport={...report,reviewNote,initialIssueCount:before.issues.length,teacherApprovalRequired:true,teacherReviewMode:true,proofreadingSucceeded,downloadAllowed:true,incompleteDraft:incomplete,missingSections:missing,repairAttempted,repairSucceeded,primaryProvider:initialProvider,worksheetProvider:worksheetRecovery.provider,questionMinimum:MIN_QUESTIONS};
   return json(reviewed);
- }catch{return json({error:'Could not generate the lesson; please retry'},502)}
+ }catch(e){console.error(JSON.stringify({event:'generation_failed',status:e.status||null,reason:e.message}));return json({error:'Generation providers unavailable or returned invalid content',reason:e.status===429?'rate_limit':e.name==='AbortError'?'timeout':'provider_error'},502)}
 };
